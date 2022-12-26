@@ -1,13 +1,18 @@
+#include <stdlib.h>
 #include "layer.h"
 
-
-layer create_layer(int number_of_neurons)
+void layer_create(struct layer_t* layer, int num_neurons)
 {
-	layer lay;
-	lay.num_neu = -1;
-	lay.neu = (struct neuron_t *) malloc(number_of_neurons * sizeof(struct neuron_t));
-	return lay;
+	layer->num_neu = num_neurons;
+	layer->neu = (struct neuron_t *) malloc(num_neurons * sizeof(struct neuron_t));
+	return;
 }
 
-// TODO:
-// Add destructor
+void layer_destroy(struct layer_t* layer)
+{
+	int i;
+	for(i=0; i<layer->num_neu; i++)
+		neuron_destroy( &layer->neu[i] );
+	free(layer->neu);
+	return;
+}

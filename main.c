@@ -1,396 +1,134 @@
-#include "backprop.h"
-#include "layer.h"
-#include "neuron.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <time.h>
+#include <sys/time.h>
+#include "engine.h"
 
+static void get_inputs(int num_training_ex, int num_output_neurons, float** input);
+static void get_desired_outputs(int num_training_ex, int num_output_neurons, float** desired_outputs);
 
-layer *lay = NULL;
-int num_layers;
-int *num_neurons;
-float alpha;
-float *cost;
-float full_cost;
-float **input;
-float **desired_outputs;
-int num_training_ex;
-int n=1;
+long long current_millis() {
+    struct timeval te;
+    gettimeofday(&te, NULL); // get current time
+    long long milliseconds = te.tv_sec*1000LL + te.tv_usec/1000; // calculate milliseconds
+    // printf("milliseconds: %lld\n", milliseconds);
+    return milliseconds;
+}
 
-int main(void)
+int main(int argc, char* argv[])
 {
+    int num_layers; //the number of layers
+    int *num_neurons2; //the number of neurons in each layer
     int i;
+    struct layer_t *lay, *input_layer, *output_layer;
+    float learn_rate;
+    int num_training_ex;
+    float **input, **desired_outputs;
 
-    srand(time(0));
+    time_t tm = time(NULL);
+    srand( tm );
 
+////prepare architecture parameter:BEGIN
     printf("Enter the number of Layers in Neural Network:\n");
-    scanf("%d",&num_layers);
+    scanf("%d", &num_layers);
 
-    num_neurons = (int*) malloc(num_layers * sizeof(int));
-    memset(num_neurons,0,num_layers *sizeof(int));
+    num_neurons2 = (int*) malloc(num_layers * sizeof(int));
+    memset(num_neurons2, 0, num_layers *sizeof(int));
 
-    // Get number of neurons per layer
-    for(i=0;i<num_layers;i++)
+    for(i=0; i<num_layers; i++)// Get number of neurons per layer
     {
         printf("Enter number of neurons in layer[%d]: \n",i+1);
-        scanf("%d",&num_neurons[i]);
+        scanf("%d", &num_neurons2[i]);
     }
 
     printf("\n");
+////prepare architecture parameter:END
 
-    // Initialize the neural network module
-    if(init()!= SUCCESS_INIT)
+////init:BEGIN
+    if(create_architecture(num_layers, num_neurons2, &lay) != SUCCESS_CREATE_ARCHITECTURE)
     {
-        printf("Error in Initialization...\n");
-        exit(0);
+        printf("Error in creating architecture...\n");
+        free( num_neurons2 );
+        return ERR_INIT;
     }
+    free( num_neurons2 );
+    printf("Neural Network Created Successfully...\n\n");
+////init:END
 
+////input:BEGIN
     printf("Enter the learning rate (Usually 0.15): \n");
-    scanf("%f",&alpha);
+    scanf("%f", &learn_rate);
     printf("\n");
 
     printf("Enter the number of training examples: \n");
-    scanf("%d",&num_training_ex);
+    scanf("%d", &num_training_ex);
     printf("\n");
+////input:END
+
+    input_layer = &lay[0];
+    output_layer = &lay[num_layers-1];
 
     input = (float**) malloc(num_training_ex * sizeof(float*));
-    for(i=0;i<num_training_ex;i++)
-    {
-        input[i] = (float*)malloc(num_neurons[0] * sizeof(float));
-    }
-
     desired_outputs = (float**) malloc(num_training_ex* sizeof(float*));
-    for(i=0;i<num_training_ex;i++)
+    for(i=0; i<num_training_ex; i++)
     {
-        desired_outputs[i] = (float*)malloc(num_neurons[num_layers-1] * sizeof(float));
+        input[i] = (float*)malloc(input_layer->num_neu * sizeof(float));
+        desired_outputs[i] = (float*)malloc(output_layer->num_neu * sizeof(float));
     }
 
-    cost = (float *) malloc(num_neurons[num_layers-1] * sizeof(float));
-    memset(cost,0,num_neurons[num_layers-1]*sizeof(float));
+//// Get Training Examples
+    get_inputs(num_training_ex, input_layer->num_neu, input);
+//// Get Output Labels
+    get_desired_outputs(num_training_ex, output_layer->num_neu, desired_outputs);
 
-    // Get Training Examples
-    get_inputs();
+////train_neural_net
+    long long t0 = current_millis();
+    train_neural_net(num_layers, num_training_ex, lay, input, desired_outputs, learn_rate);
+    long long t1 = current_millis();
+    printf("train_neural_net time %lld milli seconds\n", t1 - t0);
 
-    // Get Output Labels
-    get_desired_outputs();
+    test_neural_net(num_layers, lay);
 
-    train_neural_net();
-    test_nn();
-
-    if(dinit()!= SUCCESS_DINIT)
+////cleanup:BEGIN
+    for(i=0; i<num_layers; i++)
+        layer_destroy( &lay[i] );
+    free( lay );
+    for(i=0; i<num_training_ex; i++)
     {
-        printf("Error in Dinitialization...\n");
+        free( input[i] );
+        free( desired_outputs[i] );
     }
+    free( input );
+    free( desired_outputs );
+////cleanup:END
 
     return 0;
 }
 
-
-int init()
+static void get_inputs(int num_training_ex, int num_output_neurons, float** input)
 {
-    if(create_architecture() != SUCCESS_CREATE_ARCHITECTURE)
+    int i,j;
+    for(i=0; i<num_training_ex; i++)
     {
-        printf("Error in creating architecture...\n");
-        return ERR_INIT;
+        printf("Enter the Inputs for training example[%d]:\n", i);
+        for(j=0; j < num_output_neurons; j++)
+            scanf("%f", &input[i][j]);
+        printf("\n");
     }
-
-    printf("Neural Network Created Successfully...\n\n");
-    return SUCCESS_INIT;
 }
 
-//Get Inputs
-void  get_inputs()
+static void get_desired_outputs(int num_training_ex, int num_output_neurons, float** desired_outputs)
 {
     int i,j;
 
-        for(i=0;i<num_training_ex;i++)
-        {
-            printf("Enter the Inputs for training example[%d]:\n",i);
-
-            for(j=0;j<num_neurons[0];j++)
-            {
-                scanf("%f",&input[i][j]);
-                
-            }
-            printf("\n");
-        }
-}
-
-//Get Labels
-void get_desired_outputs()
-{
-    int i,j;
-    
     for(i=0;i<num_training_ex;i++)
     {
-        for(j=0;j<num_neurons[num_layers-1];j++)
+        for(j=0; j<num_output_neurons; j++)
         {
             printf("Enter the Desired Outputs (Labels) for training example[%d]: \n",i);
             scanf("%f",&desired_outputs[i][j]);
             printf("\n");
         }
     }
-}
-
-// Feed inputs to input layer
-void feed_input(int i)
-{
-    int j;
-
-    for(j=0;j<num_neurons[0];j++)
-    {
-        lay[0].neu[j].actv = input[i][j];
-        printf("Input: %f\n",lay[0].neu[j].actv);
-    }
-}
-
-// Create Neural Network Architecture
-int create_architecture()
-{
-    int i=0,j=0;
-    lay = (layer*) malloc(num_layers * sizeof(layer));
-
-    for(i=0;i<num_layers;i++)
-    {
-        lay[i] = create_layer(num_neurons[i]);      
-        lay[i].num_neu = num_neurons[i];
-        printf("Created Layer: %d\n", i+1);
-        printf("Number of Neurons in Layer %d: %d\n", i+1,lay[i].num_neu);
-
-        for(j=0;j<num_neurons[i];j++)
-        {
-            if(i < (num_layers-1)) 
-            {
-                lay[i].neu[j] = create_neuron(num_neurons[i+1]);
-            }
-
-            printf("Neuron %d in Layer %d created\n",j+1,i+1);  
-        }
-        printf("\n");
-    }
-
-    printf("\n");
-
-    // Initialize the weights
-    if(initialize_weights() != SUCCESS_INIT_WEIGHTS)
-    {
-        printf("Error Initilizing weights...\n");
-        return ERR_CREATE_ARCHITECTURE;
-    }
-
-    return SUCCESS_CREATE_ARCHITECTURE;
-}
-
-int initialize_weights(void)
-{
-    int i,j,k;
-
-    if(lay == NULL)
-    {
-        printf("No layers in Neural Network...\n");
-        return ERR_INIT_WEIGHTS;
-    }
-
-    printf("Initializing weights...\n");
-
-    for(i=0;i<num_layers-1;i++)
-    {
-        
-        for(j=0;j<num_neurons[i];j++)
-        {
-            for(k=0;k<num_neurons[i+1];k++)
-            {
-                // Initialize Output Weights for each neuron
-                lay[i].neu[j].out_weights[k] = ((double)rand())/((double)RAND_MAX);
-                printf("%d:w[%d][%d]: %f\n",k,i,j, lay[i].neu[j].out_weights[k]);
-                lay[i].neu[j].dw[k] = 0.0;
-            }
-
-            if(i>0) 
-            {
-                lay[i].neu[j].bias = ((double)rand())/((double)RAND_MAX);
-            }
-        }
-    }   
-    printf("\n");
-    
-    for (j=0; j<num_neurons[num_layers-1]; j++)
-    {
-        lay[num_layers-1].neu[j].bias = ((double)rand())/((double)RAND_MAX);
-    }
-
-    return SUCCESS_INIT_WEIGHTS;
-}
-
-// Train Neural Network
-void train_neural_net(void)
-{
-    int i;
-    int it=0;
-
-    // Gradient Descent
-    for(it=0;it<20000;it++)
-    {
-        for(i=0;i<num_training_ex;i++)
-        {
-            feed_input(i);
-            forward_prop();
-            compute_cost(i);
-            back_prop(i);
-            update_weights();
-        }
-    }
-}
-
-
-
-void update_weights(void)
-{
-    int i,j,k;
-
-    for(i=0;i<num_layers-1;i++)
-    {
-        for(j=0;j<num_neurons[i];j++)
-        {
-            for(k=0;k<num_neurons[i+1];k++)
-            {
-                // Update Weights
-                lay[i].neu[j].out_weights[k] = (lay[i].neu[j].out_weights[k]) - (alpha * lay[i].neu[j].dw[k]);
-            }
-            
-            // Update Bias
-            lay[i].neu[j].bias = lay[i].neu[j].bias - (alpha * lay[i].neu[j].dbias);
-        }
-    }   
-}
-
-void forward_prop(void)
-{
-    int i,j,k;
-
-    for(i=1;i<num_layers;i++)
-    {   
-        for(j=0;j<num_neurons[i];j++)
-        {
-            lay[i].neu[j].z = lay[i].neu[j].bias;
-
-            for(k=0;k<num_neurons[i-1];k++)
-            {
-                lay[i].neu[j].z  = lay[i].neu[j].z + ((lay[i-1].neu[k].out_weights[j])* (lay[i-1].neu[k].actv));
-            }
-
-            // Relu Activation Function for Hidden Layers
-            if(i < num_layers-1)
-            {
-                if((lay[i].neu[j].z) < 0)
-                {
-                    lay[i].neu[j].actv = 0;
-                }
-
-                else
-                {
-                    lay[i].neu[j].actv = lay[i].neu[j].z;
-                }
-            }
-            
-            // Sigmoid Activation function for Output Layer
-            else
-            {
-                lay[i].neu[j].actv = 1/(1+exp(-lay[i].neu[j].z));
-                printf("Output: %d\n", (int)round(lay[i].neu[j].actv));
-                printf("\n");
-            }
-        }
-    }
-}
-
-// Compute Total Cost
-void compute_cost(int i)
-{
-    int j;
-    float tmpcost=0;
-    float tcost=0;
-
-    for(j=0;j<num_neurons[num_layers-1];j++)
-    {
-        tmpcost = desired_outputs[i][j] - lay[num_layers-1].neu[j].actv;
-        cost[j] = (tmpcost * tmpcost)/2;
-        tcost = tcost + cost[j];
-    }   
-
-    full_cost = (full_cost + tcost)/n;
-    n++;
-    // printf("Full Cost: %f\n",full_cost);
-}
-
-// Back Propogate Error
-void back_prop(int p)
-{
-    int i,j,k;
-
-    // Output Layer
-    for(j=0;j<num_neurons[num_layers-1];j++)
-    {           
-        lay[num_layers-1].neu[j].dz = (lay[num_layers-1].neu[j].actv - desired_outputs[p][j]) * (lay[num_layers-1].neu[j].actv) * (1- lay[num_layers-1].neu[j].actv);
-
-        for(k=0;k<num_neurons[num_layers-2];k++)
-        {   
-            lay[num_layers-2].neu[k].dw[j] = (lay[num_layers-1].neu[j].dz * lay[num_layers-2].neu[k].actv);
-            lay[num_layers-2].neu[k].dactv = lay[num_layers-2].neu[k].out_weights[j] * lay[num_layers-1].neu[j].dz;
-        }
-            
-        lay[num_layers-1].neu[j].dbias = lay[num_layers-1].neu[j].dz;           
-    }
-
-    // Hidden Layers
-    for(i=num_layers-2;i>0;i--)
-    {
-        for(j=0;j<num_neurons[i];j++)
-        {
-            if(lay[i].neu[j].z >= 0)
-            {
-                lay[i].neu[j].dz = lay[i].neu[j].dactv;
-            }
-            else
-            {
-                lay[i].neu[j].dz = 0;
-            }
-
-            for(k=0;k<num_neurons[i-1];k++)
-            {
-                lay[i-1].neu[k].dw[j] = lay[i].neu[j].dz * lay[i-1].neu[k].actv;    
-                
-                if(i>1)
-                {
-                    lay[i-1].neu[k].dactv = lay[i-1].neu[k].out_weights[j] * lay[i].neu[j].dz;
-                }
-            }
-
-            lay[i].neu[j].dbias = lay[i].neu[j].dz;
-        }
-    }
-}
-
-// Test the trained network
-void test_nn(void) 
-{
-    int i;
-    while(1)
-    {
-        printf("Enter input to test:\n");
-
-        for(i=0;i<num_neurons[0];i++)
-        {
-            scanf("%f",&lay[0].neu[i].actv);
-        }
-        forward_prop();
-    }
-}
-
-// TODO: Add different Activation functions
-//void activation_functions()
-
-int dinit(void)
-{
-    // TODO:
-    // Free up all the structures
-
-    return SUCCESS_DINIT;
 }

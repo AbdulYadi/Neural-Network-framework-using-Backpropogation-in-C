@@ -1,15 +1,15 @@
-#ifndef LAYER_H
-#define LAYER_H
+#ifndef _LAYER_H_
+#define _LAYER_H_
 
 #include "neuron.h"
 
-
-typedef struct layer_t
+struct layer_t
 {
 	int num_neu;
-	struct neuron_t *neu; 
-} layer;
+	struct neuron_t *neu;
+};
 
-layer create_layer(int num_neurons);
+extern void layer_create(struct layer_t* layer, int num_neurons);
+extern void layer_destroy(struct layer_t* layer);
 
-#endif
+#endif //_LAYER_H_

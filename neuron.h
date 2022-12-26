@@ -1,11 +1,5 @@
-#ifndef NEURON_H
-#define NEURON_H
-
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <math.h>
-#include<time.h>
+#ifndef _NEURON_H_
+#define _NEURON_H_
 
 typedef struct neuron_t
 {
@@ -18,11 +12,9 @@ typedef struct neuron_t
 	float *dw;
 	float dbias;
 	float dz;
-
-	// TODO: Add function pointer for destructor
-
 } neuron;
 
-neuron create_neuron(int num_out_weights);
+extern void neuron_create(struct neuron_t *p, int num_out_weights);
+extern void neuron_destroy(struct neuron_t *p);
 
-#endif
+#endif //_NEURON_H_
